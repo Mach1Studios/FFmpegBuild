@@ -151,8 +151,19 @@ function (create_ffmpeg_build_target)
                 set (filename "${filename}${CMAKE_SHARED_LIBRARY_SUFFIX}")
             endif ()
 
-            message (STATUS "Shared lib output name is ${filename}")
-            set (${filename_out} "${filename}" PARENT_SCOPE)
+            message (TRACE "Shared lib output name is ${filename}")
+
+        else ()
+
+            if (CMAKE_STATIC_LIBRARY_PREFIX)
+                set (filename "${CMAKE_STATIC_LIBRARY_PREFIX}${filename}")
+            endif ()
+
+            if (CMAKE_STATIC_LIBRARY_SUFFIX)
+                set (filename "${filename}${CMAKE_STATIC_LIBRARY_SUFFIX}")
+            endif ()
+
+            message (TRACE "Static lib output name is ${filename}")
 
         endif ()
 
