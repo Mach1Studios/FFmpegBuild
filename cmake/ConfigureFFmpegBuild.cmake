@@ -156,6 +156,9 @@ function (create_ffmpeg_build_target)
 
         endif ()
 
+        set (${filename_out} "${filename}" PARENT_SCOPE)
+        message (STATUS "lib output name is ${filename}")
+
     endfunction ()
 
     #
