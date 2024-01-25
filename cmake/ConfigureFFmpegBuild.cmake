@@ -63,6 +63,8 @@ function (preconfigure_ffmpeg_build)
          --disable-doc
          --disable-asm
          --disable-lzma
+         --disable-bzlib
+         --disable-zlib 
          --shlibdir=${FOLEYS_ARG_OUTPUT_DIR}
          --libdir=${FOLEYS_ARG_OUTPUT_DIR}
          --incdir=${FOLEYS_ARG_OUTPUT_DIR}/${CMAKE_INSTALL_INCLUDEDIR}
