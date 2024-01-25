@@ -12,6 +12,8 @@ if(NOT (NUM_PROCESSORS GREATER 0))
     set (NUM_PROCESSORS 4)
 endif()
 
+option(BUILD_SHARED_LIBS "Build as shared libraries" OFF)
+
 #
 
 #[[
@@ -139,18 +141,20 @@ function (create_ffmpeg_build_target)
 
         # TODO: Allow option of STATIC or SHARED
 
-        if (CMAKE_SHARED_LIBRARY_PREFIX)
-            set (filename "${CMAKE_SHARED_LIBRARY_PREFIX}${filename}")
+        if (BUILD_SHARED_LIBS)
+
+            if (CMAKE_SHARED_LIBRARY_PREFIX)
+                set (filename "${CMAKE_SHARED_LIBRARY_PREFIX}${filename}")
+            endif ()
+
+            if (CMAKE_SHARED_LIBRARY_SUFFIX)
+                set (filename "${filename}${CMAKE_SHARED_LIBRARY_SUFFIX}")
+            endif ()
+
             message (STATUS "Shared lib output name is ${filename}")
+            set (${filename_out} "${filename}" PARENT_SCOPE)
 
         endif ()
-
-        if (CMAKE_SHARED_LIBRARY_SUFFIX)
-            set (filename "${filename}${CMAKE_SHARED_LIBRARY_SUFFIX}")
-            message (STATUS "Shared lib output name is ${filename}")
-        endif ()
-
-        set (${filename_out} "${filename}" PARENT_SCOPE)
 
     endfunction ()
 
@@ -175,7 +179,7 @@ function (create_ffmpeg_build_target)
             set (install_dest "${CMAKE_INSTALL_LIBDIR}")
         endif ()
 
-        message (STATUS "${libname}: install destination is ${install_dest}")
+        message (TRACE "${libname}: install destination is ${install_dest}")
 
         target_link_libraries (
             ffmpeg INTERFACE "$<BUILD_INTERFACE:${lib_path}>"
