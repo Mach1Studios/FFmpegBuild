@@ -99,7 +99,7 @@ set (FFMPEG_LD_FLAGS "${FFMPEG_C_FLAGS} ${FFMPEG_LD_FLAGS} ${FFMPEG_EXTRA_LD_FLA
 
 include ("${CMAKE_CURRENT_LIST_DIR}/cmake/ConfigureFFmpegBuild.cmake")
 
-add_library (ffmpeg INTERFACE)
+add_library (ffmpeg STATIC INTERFACE)
 
 set (ffmpeg_output_dir "${CMAKE_CURRENT_BINARY_DIR}/ffmpeg")
 

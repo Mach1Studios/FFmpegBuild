@@ -141,10 +141,13 @@ function (create_ffmpeg_build_target)
 
         if (CMAKE_SHARED_LIBRARY_PREFIX)
             set (filename "${CMAKE_SHARED_LIBRARY_PREFIX}${filename}")
+            message (STATUS "Shared lib output name is ${filename}")
+
         endif ()
 
         if (CMAKE_SHARED_LIBRARY_SUFFIX)
             set (filename "${filename}${CMAKE_SHARED_LIBRARY_SUFFIX}")
+            message (STATUS "Shared lib output name is ${filename}")
         endif ()
 
         set (${filename_out} "${filename}" PARENT_SCOPE)
@@ -162,7 +165,7 @@ function (create_ffmpeg_build_target)
 
         set (lib_path "${FOLEYS_ARG_OUTPUT_DIR}/${libfilename}")
 
-        message (TRACE "${libname}: output path is ${lib_path}")
+        message (STATUS "${libname}: output path is ${lib_path}")
 
         list (APPEND ffmpeg_libs_output_files "${lib_path}")
 
@@ -172,7 +175,7 @@ function (create_ffmpeg_build_target)
             set (install_dest "${CMAKE_INSTALL_LIBDIR}")
         endif ()
 
-        message (TRACE "${libname}: install destination is ${install_dest}")
+        message (STATUS "${libname}: install destination is ${install_dest}")
 
         target_link_libraries (
             ffmpeg INTERFACE "$<BUILD_INTERFACE:${lib_path}>"
