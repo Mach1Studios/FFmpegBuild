@@ -58,7 +58,7 @@ find_program (FFMPEG_MAKE_EXECUTABLE
               DOC "Path to the make executable used for building FFmpeg"
               REQUIRED)
 
-set (FFMPEG_VERSION 4.4.1 CACHE STRING "FFmpeg version")
+set (FFMPEG_VERSION 5.1.6 CACHE STRING "FFmpeg version")
 
 set (FFMPEG_NAME "ffmpeg-${FFMPEG_VERSION}")
 
