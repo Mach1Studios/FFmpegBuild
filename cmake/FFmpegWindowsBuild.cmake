@@ -137,18 +137,50 @@ if (FFMPEG_WINDOWS_USE_MSYS2 AND MSYS2_BASH)
         OUTPUT_STRIP_TRAILING_WHITESPACE
         ERROR_QUIET)
     
-    # Create a wrapper script for the build
-    set (WINDOWS_BUILD_SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/ffmpeg_windows_build.sh")
+    message (STATUS "MSYS2 source path: ${MSYS2_SOURCE_DIR}")
+    message (STATUS "MSYS2 output path: ${MSYS2_OUTPUT_DIR}")
     
     # Build the configure arguments string
     string (REPLACE ";" " " WINDOWS_CONFIGURE_ARGS_STR "${WINDOWS_CONFIGURE_EXTRA_ARGS}")
     
+    # Create a more robust wrapper script for the build
+    set (WINDOWS_BUILD_SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/ffmpeg_windows_build.sh")
+    
     file (WRITE "${WINDOWS_BUILD_SCRIPT}"
           "#!/bin/bash\n"
           "set -e\n"
-          "echo \"Building FFmpeg in MSYS2 environment...\"\n"
+          "echo \"=== FFmpeg Windows Build Script ===\"\n"
+          "echo \"Source directory: ${MSYS2_SOURCE_DIR}\"\n"
+          "echo \"Output directory: ${MSYS2_OUTPUT_DIR}\"\n"
+          "echo \"Working directory: $(pwd)\"\n"
+          "\n"
+          "# Verify we can access the source directory\n"
+          "if [ ! -d '${MSYS2_SOURCE_DIR}' ]; then\n"
+          "  echo \"ERROR: Source directory not found: ${MSYS2_SOURCE_DIR}\"\n"
+          "  exit 1\n"
+          "fi\n"
+          "\n"
+          "# Change to source directory\n"
+          "echo \"Changing to source directory...\"\n"
           "cd '${MSYS2_SOURCE_DIR}'\n"
-          "make distclean || true\n"
+          "echo \"Current directory: $(pwd)\"\n"
+          "\n"
+          "# Verify configure script exists\n"
+          "if [ ! -f './configure' ]; then\n"
+          "  echo \"ERROR: configure script not found in $(pwd)\"\n"
+          "  ls -la | head -10\n"
+          "  exit 1\n"
+          "fi\n"
+          "\n"
+          "# Clean previous build\n"
+          "echo \"Cleaning previous build...\"\n"
+          "make distclean || echo \"No previous build to clean\"\n"
+          "\n"
+          "# Create output directory\n"
+          "mkdir -p '${MSYS2_OUTPUT_DIR}'\n"
+          "\n"
+          "# Configure FFmpeg\n"
+          "echo \"Configuring FFmpeg...\"\n"
           "./configure \\\n"
           "  --prefix='${MSYS2_OUTPUT_DIR}' \\\n"
           "  --libdir='${MSYS2_OUTPUT_DIR}' \\\n"
@@ -160,18 +192,21 @@ if (FFMPEG_WINDOWS_USE_MSYS2 AND MSYS2_BASH)
           "  --disable-bzlib \\\n"
           "  --disable-zlib \\\n"
           "  ${WINDOWS_CONFIGURE_ARGS_STR}\n"
+          "\n"
           "echo \"Starting FFmpeg build...\"\n"
           "make -j${NUM_PROCESSORS}\n"
+          "\n"
           "echo \"Installing FFmpeg...\"\n"
           "make install\n"
+          "\n"
           "echo \"FFmpeg build completed successfully\"\n")
     
-    # Create the build target using MSYS2
+    # Create the build target using MSYS2 - simplified approach
     add_custom_target (
         ffmpeg_build_windows
         ${all_flag}
-        COMMAND "${MSYS2_BASH}" -l -c "cd '${MSYS2_SOURCE_DIR}' && bash '${CMAKE_CURRENT_BINARY_DIR}/ffmpeg_windows_build.sh'"
-        WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+        COMMAND "${MSYS2_BASH}" "${WINDOWS_BUILD_SCRIPT}"
+        WORKING_DIRECTORY "${FFMPEG_SOURCE_DIR}"
         COMMENT "Building FFmpeg for Windows using MSYS2..."
         VERBATIM 
         USES_TERMINAL)
