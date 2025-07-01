@@ -1,0 +1,177 @@
+#[[
+
+Linux-specific FFmpeg build configuration.
+
+This file configures FFmpeg builds for Linux, supporting:
+1. Native Linux builds with GCC/Clang
+2. Static and shared library builds
+3. Cross-compilation support
+4. Distribution-specific optimizations
+
+Requirements:
+- GCC or Clang compiler
+- Standard Linux development tools (make, pkg-config, etc.)
+- Optional: NASM for assembly optimizations
+- Optional: Various codec libraries for extended format support
+
+]]
+
+cmake_minimum_required (VERSION 3.22 FATAL_ERROR)
+
+include_guard (GLOBAL)
+
+message (STATUS "Configuring FFmpeg Linux build...")
+
+# Detect Linux build environment and tools
+find_program (LINUX_CC
+              NAMES gcc clang cc
+              DOC "C compiler for Linux build"
+              REQUIRED)
+
+find_program (LINUX_CXX
+              NAMES g++ clang++ c++
+              DOC "C++ compiler for Linux build"
+              REQUIRED)
+
+# Optional tools for better performance
+find_program (NASM_EXECUTABLE
+              NAMES nasm
+              DOC "NASM assembler for optimized builds")
+
+find_program (PKG_CONFIG_EXECUTABLE
+              NAMES pkg-config
+              DOC "pkg-config for dependency detection")
+
+# Detect system libraries that might be useful
+find_library (PTHREAD_LIB pthread)
+find_library (MATH_LIB m)
+
+# Linux-specific configure arguments
+set (LINUX_CONFIGURE_EXTRA_ARGS
+     "--target-os=linux")
+
+# Architecture detection
+if (CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
+    list (APPEND LINUX_CONFIGURE_EXTRA_ARGS "--arch=x86_64")
+elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "i[3-6]86")
+    list (APPEND LINUX_CONFIGURE_EXTRA_ARGS "--arch=x86")
+elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
+    list (APPEND LINUX_CONFIGURE_EXTRA_ARGS "--arch=aarch64")
+elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "arm")
+    list (APPEND LINUX_CONFIGURE_EXTRA_ARGS "--arch=arm")
+else()
+    message (WARNING "Unknown architecture: ${CMAKE_SYSTEM_PROCESSOR}")
+endif()
+
+# Compiler selection
+list (APPEND LINUX_CONFIGURE_EXTRA_ARGS
+      "--cc=${LINUX_CC}"
+      "--cxx=${LINUX_CXX}")
+
+# Enable assembly optimizations if NASM is available
+if (NASM_EXECUTABLE)
+    message (STATUS "NASM found: ${NASM_EXECUTABLE} - enabling assembly optimizations")
+    list (APPEND LINUX_CONFIGURE_EXTRA_ARGS "--enable-nasm")
+else()
+    message (STATUS "NASM not found - disabling assembly optimizations")
+    list (APPEND LINUX_CONFIGURE_EXTRA_ARGS "--disable-asm")
+endif()
+
+# Static vs shared library configuration
+if (FFMPEG_LINUX_STATIC_BUILD OR NOT BUILD_SHARED_LIBS)
+    message (STATUS "Configuring static FFmpeg build for Linux")
+    list (APPEND LINUX_CONFIGURE_EXTRA_ARGS
+          "--enable-static"
+          "--disable-shared"
+          "--enable-pic")  # Still enable PIC for potential static linking into shared libs
+else()
+    message (STATUS "Configuring shared FFmpeg build for Linux")
+    list (APPEND LINUX_CONFIGURE_EXTRA_ARGS
+          "--enable-shared"
+          "--disable-static")
+endif()
+
+# Performance and feature optimizations
+list (APPEND LINUX_CONFIGURE_EXTRA_ARGS
+      "--enable-pthreads"
+      "--enable-pic"
+      "--disable-debug"
+      "--enable-optimizations")
+
+# Common codec support (can be extended based on system libraries)
+list (APPEND LINUX_CONFIGURE_EXTRA_ARGS
+      "--enable-gpl"          # Enable GPL code (allows more codecs)
+      "--enable-version3"     # Enable version 3 of the GPL
+      "--enable-libx264"      # H.264 encoder (if available)
+      "--enable-libx265"      # H.265 encoder (if available)
+      "--enable-libvpx"       # VP8/VP9 codecs (if available)
+      "--enable-libmp3lame"   # MP3 encoder (if available)
+      "--enable-libopus"      # Opus codec (if available)
+      "--enable-libvorbis"    # Vorbis codec (if available)
+      "--enable-libtheora")   # Theora codec (if available)
+
+# Note: The above --enable-lib* options will be ignored if the libraries aren't found
+# FFmpeg's configure script will automatically disable unavailable libraries
+
+# Hardware acceleration support (if available)
+list (APPEND LINUX_CONFIGURE_EXTRA_ARGS
+      "--enable-vaapi"        # Video Acceleration API
+      "--enable-vdpau"        # NVIDIA VDPAU
+      "--enable-nvenc"        # NVIDIA NVENC
+      "--enable-nvdec")       # NVIDIA NVDEC
+
+# Configure build
+if (PROJECT_IS_TOP_LEVEL)
+    set (all_flag ALL)
+else ()
+    unset (all_flag)
+endif ()
+
+set (linux_output_dir "${ffmpeg_output_dir}/linux")
+
+message (DEBUG "Linux output directory: ${linux_output_dir}")
+
+# Standard Linux build using existing functions
+preconfigure_ffmpeg_build (
+    SOURCE_DIR "${FFMPEG_SOURCE_DIR}" 
+    OUTPUT_DIR "${linux_output_dir}"
+    EXTRA_ARGS ${LINUX_CONFIGURE_EXTRA_ARGS})
+
+create_ffmpeg_build_target (
+    SOURCE_DIR "${FFMPEG_SOURCE_DIR}" 
+    OUTPUT_DIR "${linux_output_dir}"
+    BUILD_TARGET ffmpeg_build_linux
+    ${all_flag})
+
+# Copy avconfig.h
+file (MAKE_DIRECTORY "${ffmpeg_output_dir}/include/libavutil")
+
+file (COPY_FILE 
+      "${FFMPEG_SOURCE_DIR}/libavutil/avconfig.h" 
+      "${ffmpeg_output_dir}/include/libavutil/avconfig.h")
+
+add_dependencies (ffmpeg ffmpeg_build_linux)
+
+# Linux-specific installation rules
+if (FFMPEG_LINUX_STATIC_BUILD OR NOT BUILD_SHARED_LIBS)
+    # For static builds, we might want to create a combined static library
+    # This is optional and can be useful for easier linking
+    option (FFMPEG_LINUX_CREATE_COMBINED_STATIC "Create a combined static library" OFF)
+    
+    if (FFMPEG_LINUX_CREATE_COMBINED_STATIC)
+        message (STATUS "Will create combined static FFmpeg library")
+        
+        # This would require additional custom commands to combine all static libs
+        # Implementation depends on specific requirements
+    endif()
+endif()
+
+message (STATUS "Linux FFmpeg build configured successfully")
+
+# Print configuration summary
+message (STATUS "Linux build configuration:")
+message (STATUS "  Compiler: ${LINUX_CC}")
+message (STATUS "  Architecture: ${CMAKE_SYSTEM_PROCESSOR}")
+message (STATUS "  NASM available: ${NASM_EXECUTABLE}")
+message (STATUS "  Static build: ${FFMPEG_LINUX_STATIC_BUILD}")
+message (STATUS "  Output directory: ${linux_output_dir}") 

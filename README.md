@@ -1,18 +1,236 @@
-This repository contains CMake scripts wrapping FFmpeg's horrendous build system into something sane and usable.
+# FFmpeg CMake Build System
 
-On Mac, clang and yasm are required.
+A comprehensive CMake-based build system for FFmpeg that supports multiple platforms including macOS, Windows, and Linux. This build system automatically downloads FFmpeg source code and builds it using platform-specific optimizations.
 
-On MacOS, universal binaries are supported. (Technically, this repo's scripts build FFmpeg twice, once for arm64 and once for x86-64.) This can be turned off by passing `-D FFMPEG_MAC_UNIVERSAL_BINARY=OFF` to the CMake configure step.
+## Supported Platforms
 
-To use FFmpeg from within a CMake project, run `cmake --install` within this directory, and then from the consuming project you can do:
-```cmake
-find_package (ffmpeg)
+- **macOS**: Native builds with universal binary support (x86_64 + arm64)
+- **Windows**: MSYS2/MinGW and MSVC toolchain support
+- **Linux**: Native builds with GCC/Clang, static/shared library options
+- **iOS/Android**: Cross-compilation support (inherited from original)
 
-target_link_libraries (yourTarget PUBLIC ffmpeg::ffmpeg)
+## Quick Start
+
+### Prerequisites
+
+#### macOS
+- Xcode Command Line Tools
+- For universal binaries: `yasm` (install via Homebrew: `brew install yasm`)
+
+#### Windows
+- **Option 1 (Recommended): MSYS2**
+  - Install [MSYS2](https://www.msys2.org/)
+  - Install development tools: `pacman -S base-devel mingw-w64-x86_64-toolchain`
+- **Option 2: Visual Studio**
+  - Visual Studio with C++ build tools
+  - Additional manual configuration required
+
+#### Linux
+- GCC or Clang compiler
+- Make and standard build tools
+- Optional but recommended: `nasm` for assembly optimizations
+- Optional: codec libraries (libx264, libx265, libvpx, etc.)
+
+### Basic Usage
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd FFmpegBuild
+
+# Configure and build
+mkdir build
+cd build
+cmake ..
+cmake --build .
+
+# Install (optional)
+cmake --install .
 ```
-and it should work out of the box.
 
-Sometimes repeated builds can fail spuriously; if in doubt, try deleting your builds directory and reconfiguring.
+## Platform-Specific Configuration
 
-TO DO: Windows - seems to require MinGW-w64, according to https://www.ffmpeg.org/platform.html#toc-Native-Windows-compilation-using-MinGW-or-MinGW_002dw64
-TO DO: iOS and Android
+### macOS
+
+```bash
+# Standard build
+cmake ..
+
+# Universal binary (x86_64 + arm64)
+cmake -DFFMPEG_MAC_UNIVERSAL_BINARY=ON ..
+
+# Disable universal binary
+cmake -DFFMPEG_MAC_UNIVERSAL_BINARY=OFF ..
+```
+
+### Windows
+
+```bash
+# Using MSYS2 (recommended)
+cmake -DFFMPEG_WINDOWS_BUILD=ON -DFFMPEG_WINDOWS_USE_MSYS2=ON ..
+
+# Using MSVC (advanced)
+cmake -DFFMPEG_WINDOWS_BUILD=ON -DFFMPEG_WINDOWS_USE_MSYS2=OFF ..
+
+# Cross-compilation for Windows (from Linux/macOS)
+cmake -DFFMPEG_WINDOWS_BUILD=ON -DFFMPEG_WINDOWS_CROSS_COMPILE=ON ..
+```
+
+### Linux
+
+```bash
+# Shared libraries (default)
+cmake -DFFMPEG_LINUX_BUILD=ON ..
+
+# Static libraries
+cmake -DFFMPEG_LINUX_BUILD=ON -DFFMPEG_LINUX_STATIC_BUILD=ON ..
+
+# Or use the global BUILD_SHARED_LIBS option
+cmake -DFFMPEG_LINUX_BUILD=ON -DBUILD_SHARED_LIBS=OFF ..
+```
+
+## Configuration Options
+
+### Global Options
+
+- `BUILD_SHARED_LIBS`: Build shared libraries instead of static (default: OFF)
+- `FFMPEG_VERSION`: FFmpeg version to download and build (default: 5.1.6)
+- `FFMPEG_ENABLE_CROSS_COMPILATION`: Enable cross-compilation support
+
+### Platform-Specific Options
+
+#### macOS
+- `FFMPEG_MAC_UNIVERSAL_BINARY`: Build universal binary for both x86_64 and arm64
+
+#### Windows
+- `FFMPEG_WINDOWS_BUILD`: Enable Windows build
+- `FFMPEG_WINDOWS_USE_MSYS2`: Use MSYS2/MinGW toolchain (recommended)
+- `FFMPEG_WINDOWS_CROSS_COMPILE`: Cross-compile for Windows from other platforms
+
+#### Linux
+- `FFMPEG_LINUX_BUILD`: Enable Linux build
+- `FFMPEG_LINUX_STATIC_BUILD`: Build static libraries
+- `FFMPEG_LINUX_CREATE_COMBINED_STATIC`: Create a combined static library
+
+## Advanced Usage
+
+### Custom FFmpeg Version
+
+```bash
+cmake -DFFMPEG_VERSION=6.0 ..
+```
+
+### Custom Source Directory
+
+```bash
+cmake -DFFMPEG_SOURCE_DIR=/path/to/ffmpeg-source ..
+```
+
+### Cross-Compilation
+
+The build system supports cross-compilation scenarios:
+
+1. **Windows from Linux**: Install MinGW-w64 cross-compiler
+2. **Windows from macOS**: Use Homebrew to install MinGW-w64
+3. **Linux from macOS**: Use appropriate cross-compilation toolchain
+
+## Output Structure
+
+After building, the libraries and headers will be organized as follows:
+
+```
+build/
+├── ffmpeg/
+│   ├── include/           # Headers
+│   ├── libavutil.*        # Core utilities
+│   ├── libavcodec.*       # Codecs
+│   ├── libavformat.*      # Container formats
+│   ├── libswscale.*       # Video scaling
+│   └── libswresample.*    # Audio resampling
+```
+
+Platform-specific builds create subdirectories:
+- `build/ffmpeg/linux/` - Linux build outputs
+- `build/ffmpeg/windows/` - Windows build outputs
+- `build/ffmpeg/x86_64/` and `build/ffmpeg/arm64/` - macOS universal binary components
+
+## Integration with Other Projects
+
+### Using find_package
+
+After installation, you can use FFmpeg in other CMake projects:
+
+```cmake
+find_package(FFmpeg REQUIRED)
+target_link_libraries(your_target ffmpeg::ffmpeg)
+```
+
+### Manual Integration
+
+```cmake
+# Add this project as a subdirectory
+add_subdirectory(path/to/FFmpegBuild)
+
+# Link against the ffmpeg target
+target_link_libraries(your_target ffmpeg::ffmpeg)
+```
+
+## Troubleshooting
+
+### Windows Issues
+
+1. **MSYS2 not found**: Ensure MSYS2 is installed and paths are correct
+2. **MinGW compiler not found**: Install the toolchain: `pacman -S mingw-w64-x86_64-toolchain`
+3. **Path issues**: Make sure MSYS2 paths are correctly detected
+
+### Linux Issues
+
+1. **Missing dependencies**: Install development packages for your distribution
+2. **NASM not found**: Install nasm for optimized builds: `sudo apt install nasm` (Ubuntu) or `sudo yum install nasm` (RHEL/CentOS)
+3. **Codec libraries**: Optional codecs require their development libraries
+
+### macOS Issues
+
+1. **Xcode Command Line Tools**: Install with `xcode-select --install`
+2. **Universal binary fails**: Ensure both architectures are supported and yasm is available
+
+### General Issues
+
+1. **Download failures**: Check internet connection and firewall settings
+2. **Build failures**: Check that all required tools are installed and accessible
+3. **Permission errors**: Ensure write permissions in build directory
+
+## Codec Support
+
+The build system enables different codec sets based on platform and available libraries:
+
+### Linux
+- Automatically detects and enables available codec libraries
+- Supports GPL codecs (x264, x265, etc.) if libraries are installed
+- Hardware acceleration support (VAAPI, VDPAU, NVENC)
+
+### Windows
+- Basic codec set enabled by default
+- Extended codec support requires additional libraries in MSYS2
+
+### macOS
+- Standard codec support
+- VideoToolbox hardware acceleration support
+
+## Contributing
+
+When contributing to this build system:
+
+1. Test changes on all supported platforms when possible
+2. Update documentation for new options or platforms
+3. Follow the existing CMake coding style
+4. Add appropriate error handling and user feedback
+
+## License
+
+This build system is provided as-is. FFmpeg itself is licensed under the LGPL/GPL depending on the configuration options used. Please refer to FFmpeg's licensing documentation for details on the resulting binary licensing.
+
+## Version History
+
+- **Current**: Multi-platform support (Windows, Linux, macOS)
+- **Previous**: macOS-focused build with iOS/Android support

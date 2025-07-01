@@ -53,23 +53,41 @@ function (preconfigure_ffmpeg_build)
     # clean first
     execute_process (COMMAND "${FFMPEG_MAKE_EXECUTABLE}" distclean
                      WORKING_DIRECTORY "${FOLEYS_ARG_SOURCE_DIR}" 
-                     COMMAND_ECHO STDOUT)
+                     COMMAND_ECHO STDOUT
+                     ERROR_QUIET)  # Ignore errors on first-time builds
 
     file (REMOVE_RECURSE "${FOLEYS_ARG_OUTPUT_DIR}")
 
-    # TODO: Allow option of STATIC or SHARED
-    set (CONFIGURE_COMMAND
-         "./configure
-         --disable-doc
-         --disable-asm
-         --disable-lzma
-         --disable-bzlib
-         --disable-zlib 
-         --shlibdir=${FOLEYS_ARG_OUTPUT_DIR}
-         --libdir=${FOLEYS_ARG_OUTPUT_DIR}
-         --incdir=${FOLEYS_ARG_OUTPUT_DIR}/${CMAKE_INSTALL_INCLUDEDIR}
-         --prefix=${FOLEYS_ARG_OUTPUT_DIR}")
+    # Configure command - platform-aware
+    if (WIN32)
+        # Windows configure command (typically run through MSYS2)
+        set (CONFIGURE_COMMAND
+             "./configure
+             --disable-doc
+             --disable-asm
+             --disable-lzma
+             --disable-bzlib
+             --disable-zlib 
+             --prefix=${FOLEYS_ARG_OUTPUT_DIR}
+             --libdir=${FOLEYS_ARG_OUTPUT_DIR}
+             --shlibdir=${FOLEYS_ARG_OUTPUT_DIR}
+             --incdir=${FOLEYS_ARG_OUTPUT_DIR}/include")
+    else()
+        # Unix-like systems (Linux, macOS, etc.)
+        set (CONFIGURE_COMMAND
+             "./configure
+             --disable-doc
+             --disable-asm
+             --disable-lzma
+             --disable-bzlib
+             --disable-zlib 
+             --shlibdir=${FOLEYS_ARG_OUTPUT_DIR}
+             --libdir=${FOLEYS_ARG_OUTPUT_DIR}
+             --incdir=${FOLEYS_ARG_OUTPUT_DIR}/${CMAKE_INSTALL_INCLUDEDIR}
+             --prefix=${FOLEYS_ARG_OUTPUT_DIR}")
+    endif()
 
+    # Platform-specific configurations
     if (IOS OR ANDROID)
         set (
             CONFIGURE_COMMAND
@@ -83,7 +101,21 @@ function (preconfigure_ffmpeg_build)
         else ()
             set (CONFIGURE_COMMAND "${CONFIGURE_COMMAND} --target-os=android")
         endif ()
+    elseif (WIN32)
+        # Windows-specific base configuration
+        set (
+            CONFIGURE_COMMAND
+            "${CONFIGURE_COMMAND}
+                --enable-cross-compile
+                --target-os=win32")
     endif ()
+
+    # Handle static vs shared library configuration
+    if (BUILD_SHARED_LIBS)
+        set (CONFIGURE_COMMAND "${CONFIGURE_COMMAND} --enable-shared --disable-static")
+    else()
+        set (CONFIGURE_COMMAND "${CONFIGURE_COMMAND} --enable-static --disable-shared")
+    endif()
 
     separate_arguments (ffmpeg_config_command UNIX_COMMAND "${CONFIGURE_COMMAND}")
 

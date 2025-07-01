@@ -11,6 +11,7 @@ project (
 
 enable_testing ()
 
+# Platform detection and configuration
 if (APPLE)
     if (CMAKE_OSX_ARCHITECTURES)
         if (arm64 IN_LIST CMAKE_OSX_ARCHITECTURES AND x86_64 IN_LIST CMAKE_OSX_ARCHITECTURES)
@@ -27,9 +28,32 @@ if (APPLE)
     endif ()
 
     option (FFMPEG_MAC_UNIVERSAL_BINARY "Build a Mac universal binary" "${univ_bin_default}")
+    set (FFMPEG_WINDOWS_BUILD OFF)
+    set (FFMPEG_LINUX_BUILD OFF)
+elseif (WIN32)
+    set (FFMPEG_MAC_UNIVERSAL_BINARY OFF)
+    option (FFMPEG_WINDOWS_BUILD "Build FFmpeg for Windows" ON)
+    set (FFMPEG_LINUX_BUILD OFF)
+    
+    # Windows-specific options
+    option (FFMPEG_WINDOWS_USE_MSYS2 "Use MSYS2/MinGW for Windows build" ON)
+    option (FFMPEG_WINDOWS_CROSS_COMPILE "Cross-compile for Windows (from Linux/macOS)" OFF)
+elseif (UNIX)
+    set (FFMPEG_MAC_UNIVERSAL_BINARY OFF)
+    set (FFMPEG_WINDOWS_BUILD OFF)
+    option (FFMPEG_LINUX_BUILD "Build FFmpeg for Linux" ON)
+    
+    # Linux-specific options
+    option (FFMPEG_LINUX_STATIC_BUILD "Build static libraries on Linux" OFF)
 else()
     set (FFMPEG_MAC_UNIVERSAL_BINARY OFF)
+    set (FFMPEG_WINDOWS_BUILD OFF)
+    set (FFMPEG_LINUX_BUILD OFF)
+    message(WARNING "Unsupported platform detected. Build may not work correctly.")
 endif ()
+
+# Cross-compilation options
+option (FFMPEG_ENABLE_CROSS_COMPILATION "Enable cross-compilation support" OFF)
 
 if (PROJECT_IS_TOP_LEVEL)
     set_property (
@@ -53,10 +77,19 @@ set (FFMPEG_INSTALL_DEST "${CMAKE_INSTALL_LIBDIR}/cmake/FFmpeg"
      CACHE STRING
            "Directory below INSTALL_PREFIX where FFmpeg CMake package files will be installed to")
 
-find_program (FFMPEG_MAKE_EXECUTABLE 
-              NAMES make gmake nmake
-              DOC "Path to the make executable used for building FFmpeg"
-              REQUIRED)
+# Platform-specific make executable detection
+if (WIN32 AND FFMPEG_WINDOWS_USE_MSYS2)
+    find_program (FFMPEG_MAKE_EXECUTABLE 
+                  NAMES make.exe make
+                  PATHS "C:/msys64/usr/bin" "C:/msys2/usr/bin"
+                  DOC "Path to the make executable used for building FFmpeg (MSYS2/MinGW)"
+                  REQUIRED)
+else()
+    find_program (FFMPEG_MAKE_EXECUTABLE 
+                  NAMES make gmake nmake
+                  DOC "Path to the make executable used for building FFmpeg"
+                  REQUIRED)
+endif()
 
 set (FFMPEG_VERSION 5.1.6 CACHE STRING "FFmpeg version")
 
@@ -68,8 +101,7 @@ set (FFMPEG_SOURCE_DIR "${cache_dir}/${FFMPEG_NAME}" CACHE PATH "Path to FFmpeg 
 
 mark_as_advanced (FORCE FFMPEG_VERSION FFMPEG_SOURCE_DIR FFMPEG_MAKE_EXECUTABLE FFMPEG_INSTALL_DEST)
 
-#
-
+# Download and extract FFmpeg source if needed
 if (NOT EXISTS "${FFMPEG_SOURCE_DIR}")
 
     set (FFMPEG_URL "https://ffmpeg.org/releases/${FFMPEG_NAME}.tar.bz2")
@@ -90,13 +122,11 @@ if (NOT EXISTS "${FFMPEG_SOURCE_DIR}")
                      WORKING_DIRECTORY "${cache_dir}")
 endif ()
 
-#
-
+# Platform-specific linker flags
 string (REPLACE " -Wl,--fatal-warnings" "" FFMPEG_LD_FLAGS "${CMAKE_SHARED_LINKER_FLAGS}")
 set (FFMPEG_LD_FLAGS "${FFMPEG_C_FLAGS} ${FFMPEG_LD_FLAGS} ${FFMPEG_EXTRA_LD_FLAGS}")
 
-#
-
+# Include build configuration
 include ("${CMAKE_CURRENT_LIST_DIR}/cmake/ConfigureFFmpegBuild.cmake")
 
 add_library (ffmpeg INTERFACE)
@@ -105,10 +135,15 @@ set (ffmpeg_output_dir "${CMAKE_CURRENT_BINARY_DIR}/ffmpeg")
 
 message (DEBUG "ffmpeg output dir: ${ffmpeg_output_dir}")
 
+# Platform-specific build logic
 if (FFMPEG_MAC_UNIVERSAL_BINARY)
     include ("${CMAKE_CURRENT_LIST_DIR}/cmake/FFmpegMacBuild.cmake")
+elseif (FFMPEG_WINDOWS_BUILD)
+    include ("${CMAKE_CURRENT_LIST_DIR}/cmake/FFmpegWindowsBuild.cmake")
+elseif (FFMPEG_LINUX_BUILD)
+    include ("${CMAKE_CURRENT_LIST_DIR}/cmake/FFmpegLinuxBuild.cmake")
 else ()
-    message (STATUS "Configuring FFmpeg build...")
+    message (STATUS "Configuring FFmpeg build for current platform...")
 
     if (PROJECT_IS_TOP_LEVEL)
         set (all_flag ALL)
@@ -133,15 +168,28 @@ else ()
             "${ffmpeg_output_dir}/include/libavutil/avconfig.h")
 endif ()
 
-# Need to manually copy headers...
+# Copy headers for all platforms
 file (GLOB lib_headers ${FFMPEG_SOURCE_DIR}/lib*)
 
 file (COPY ${lib_headers} "${FFMPEG_SOURCE_DIR}/compat"
       DESTINATION "${ffmpeg_output_dir}/include" FILES_MATCHING PATTERN *.h)
 
-add_feature_info ("FFmpeg universal binary" 
+# Feature reporting
+add_feature_info ("FFmpeg Mac universal binary" 
                   "${FFMPEG_MAC_UNIVERSAL_BINARY}" 
                   "Mac universal binary build of ffmpeg")
+
+add_feature_info ("FFmpeg Windows build" 
+                  "${FFMPEG_WINDOWS_BUILD}" 
+                  "Windows build of ffmpeg")
+
+add_feature_info ("FFmpeg Linux build" 
+                  "${FFMPEG_LINUX_BUILD}" 
+                  "Linux build of ffmpeg")
+
+add_feature_info ("FFmpeg MSYS2 support" 
+                  "${FFMPEG_WINDOWS_USE_MSYS2}" 
+                  "Use MSYS2/MinGW for Windows builds")
 
 target_include_directories (
     ffmpeg
@@ -158,11 +206,14 @@ set (config_is_debug "$<IN_LIST:$<CONFIG>,${debug_configs}>")
 
 set (compiler_msvc "$<C_COMPILER_ID:MSVC>")
 
+# Platform-specific compiler settings
 # see https://www.ffmpeg.org/platform.html#toc-Linking-to-FFmpeg-with-Microsoft-Visual-C_002b_002b
-set_target_properties (ffmpeg PROPERTIES 
-                        $<${compiler_msvc}:MSVC_RUNTIME_LIBRARY MultiThreaded$<${config_is_debug}:Debug>>)
-
-target_compile_options (ffmpeg INTERFACE "$<${compiler_msvc}:/MT>")
+if (WIN32)
+    set_target_properties (ffmpeg PROPERTIES 
+                            $<${compiler_msvc}:MSVC_RUNTIME_LIBRARY MultiThreaded$<${config_is_debug}:Debug>>)
+    
+    target_compile_options (ffmpeg INTERFACE "$<${compiler_msvc}:/MT>")
+endif()
 
 add_library (ffmpeg::ffmpeg ALIAS ffmpeg)
 
