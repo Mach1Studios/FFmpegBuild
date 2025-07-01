@@ -4,7 +4,7 @@ cmake_minimum_required (VERSION 3.22 FATAL_ERROR)
 
 project (
     FFmpeg
-    VERSION 4.4.1
+    VERSION 5.1.6
     DESCRIPTION "CMake build of FFmpeg"
     HOMEPAGE_URL "https://www.ffmpeg.org/"
     LANGUAGES NONE) # FFmpeg is built using make shell commands, so within CMake we don't need to enable any languages
