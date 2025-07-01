@@ -81,9 +81,18 @@ set (FFMPEG_INSTALL_DEST "${CMAKE_INSTALL_LIBDIR}/cmake/FFmpeg"
 if (WIN32 AND FFMPEG_WINDOWS_USE_MSYS2)
     find_program (FFMPEG_MAKE_EXECUTABLE 
                   NAMES make.exe make
-                  PATHS "C:/msys64/usr/bin" "C:/msys2/usr/bin"
-                  DOC "Path to the make executable used for building FFmpeg (MSYS2/MinGW)"
-                  REQUIRED)
+                  PATHS "C:/msys64/usr/bin" "C:/msys2/usr/bin" "D:/msys64/usr/bin" "D:/msys2/usr/bin"
+                        "$ENV{MSYS2_ROOT}/usr/bin"
+                  DOC "Path to the make executable used for building FFmpeg (MSYS2/MinGW)")
+    
+    if (NOT FFMPEG_MAKE_EXECUTABLE)
+        message (FATAL_ERROR 
+            "MSYS2 make not found. Please install MSYS2 and the build tools:\n"
+            "1. Install MSYS2 from https://www.msys2.org/\n"
+            "2. Open MSYS2 terminal and run: pacman -S base-devel mingw-w64-x86_64-toolchain\n"
+            "3. Add MSYS2 to your PATH or set MSYS2_ROOT environment variable\n"
+            "Alternatively, disable MSYS2: -DFFMPEG_WINDOWS_USE_MSYS2=OFF")
+    endif()
 else()
     find_program (FFMPEG_MAKE_EXECUTABLE 
                   NAMES make gmake nmake

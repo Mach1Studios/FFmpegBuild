@@ -175,13 +175,96 @@ add_subdirectory(path/to/FFmpegBuild)
 target_link_libraries(your_target ffmpeg::ffmpeg)
 ```
 
+## Testing
+
+The build system includes a comprehensive test script that can validate configurations:
+
+### Test Script Usage
+
+```bash
+# Test current platform only
+./test-build.sh
+
+# Test specific platform
+./test-build.sh --platform linux
+./test-build.sh --platform windows
+./test-build.sh --platform macos
+
+# Test all platform configurations (may fail on unsupported platforms)
+./test-build.sh --all-platforms
+
+# Show help
+./test-build.sh --help
+```
+
+### What the Test Script Does
+
+- **Local Platform Testing**: By default, tests only the current platform's configurations
+- **Cross-Platform Configuration Testing**: With `--all-platforms`, attempts to test all platform configurations
+- **Configuration Validation**: Checks that CMake configuration succeeds without building
+- **Dependency Detection**: Verifies required tools and paths are found
+- **Feature Testing**: Tests platform-specific features and options
+
+**Note**: The test script performs configuration testing only - it doesn't actually build FFmpeg (which would take much longer). Some cross-platform tests may fail if the required toolchains aren't installed.
+
+### Configuration Examples
+
+Run `./configure-examples.sh` to see various configuration examples for different platforms and use cases.
+
 ## Troubleshooting
 
 ### Windows Issues
 
-1. **MSYS2 not found**: Ensure MSYS2 is installed and paths are correct
-2. **MinGW compiler not found**: Install the toolchain: `pacman -S mingw-w64-x86_64-toolchain`
-3. **Path issues**: Make sure MSYS2 paths are correctly detected
+1. **'bash.exe' is not recognized as an internal or external command**:
+   ```
+   'C:\Windows\System32\bash.exe' is not recognized as an internal or external command
+   ```
+   This means the build system is trying to use WSL bash instead of MSYS2 bash. Solutions:
+   - Install MSYS2 from https://www.msys2.org/
+   - Install build tools: `pacman -S base-devel mingw-w64-x86_64-toolchain`
+   - Set environment variable: `MSYS2_ROOT=C:\msys64` (or your MSYS2 path)
+   - Alternatively, disable MSYS2: `cmake .. -DFFMPEG_WINDOWS_USE_MSYS2=OFF`
+
+2. **MSYS2 not found**: Ensure MSYS2 is installed and paths are correct
+3. **MinGW compiler not found**: Install the toolchain: `pacman -S mingw-w64-x86_64-toolchain`
+4. **Path issues**: Make sure MSYS2 paths are correctly detected
+5. **avconfig.h not found**: This file is generated during build - the error should be resolved with the updated build scripts
+
+#### Windows Build Environment Setup
+
+**Quick Setup (Recommended)**:
+```bash
+# Run the automated setup script
+setup-windows.bat
+```
+
+For manual setup or troubleshooting:
+
+1. **Install MSYS2**:
+   ```bash
+   # Download from https://www.msys2.org/
+   # Install to C:\msys64 (recommended)
+   ```
+
+2. **Install build tools**:
+   ```bash
+   # Open MSYS2 terminal
+   pacman -S base-devel mingw-w64-x86_64-toolchain
+   ```
+
+3. **Configure your project**:
+   ```bash
+   # From regular Windows Command Prompt or PowerShell
+   cmake .. -DFFMPEG_WINDOWS_BUILD=ON -DFFMPEG_WINDOWS_USE_MSYS2=ON
+   ```
+
+4. **If MSYS2 is in a non-standard location**:
+   ```bash
+   # Set environment variable
+   set MSYS2_ROOT=D:\msys64
+   # or
+   cmake .. -DFFMPEG_WINDOWS_BUILD=ON -DFFMPEG_WINDOWS_USE_MSYS2=ON -DMSYS2_ROOT=D:\msys64
+   ```
 
 ### Linux Issues
 
