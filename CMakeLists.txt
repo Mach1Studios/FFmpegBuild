@@ -77,8 +77,9 @@ set (FFMPEG_INSTALL_DEST "${CMAKE_INSTALL_LIBDIR}/cmake/FFmpeg"
      CACHE STRING
            "Directory below INSTALL_PREFIX where FFmpeg CMake package files will be installed to")
 
-# Windows MSYS2 detection (needs to happen early for make executable detection)
+# Windows-specific configuration (needs to happen early for make executable detection)
 if (WIN32)
+    option(FFMPEG_WINDOWS_BUILD "Enable Windows-specific FFmpeg build configuration" ON)
     option(FFMPEG_WINDOWS_USE_MSYS2 "Use MSYS2/MinGW for Windows builds" ON)
     
     if (FFMPEG_WINDOWS_USE_MSYS2)
@@ -92,6 +93,8 @@ if (WIN32)
         if (NOT MSYS2_ROOT_PATH)
             message (WARNING "MSYS2 not found, disabling MSYS2 support")
             set (FFMPEG_WINDOWS_USE_MSYS2 OFF)
+        else()
+            message (STATUS "Found MSYS2 at: ${MSYS2_ROOT_PATH}")
         endif()
     endif()
 endif()

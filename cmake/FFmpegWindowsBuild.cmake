@@ -30,53 +30,39 @@ set (WINDOWS_CONFIGURE_EXTRA_ARGS
      "--disable-cuda-nvcc"   # Disable NVIDIA CUDA unless specifically needed
      "--disable-libnpp")
 
-# Detect Windows build environment
-if (FFMPEG_WINDOWS_USE_MSYS2)
+# Use MSYS2 configuration if detected (MSYS2_ROOT_PATH set in main CMakeLists.txt)
+if (FFMPEG_WINDOWS_USE_MSYS2 AND MSYS2_ROOT_PATH)
     message (STATUS "Using MSYS2/MinGW toolchain for Windows build")
+    message (STATUS "MSYS2 root: ${MSYS2_ROOT_PATH}")
     
-    # Find MSYS2 installation - be more flexible about locations
-    find_path (MSYS2_ROOT_PATH
-               NAMES usr/bin/bash.exe
-               PATHS "C:/msys64" "C:/msys2" "D:/msys64" "D:/msys2" 
-                     "$ENV{MSYS2_ROOT}" "$ENV{MSYSTEM_PREFIX}/.."
-               DOC "Path to MSYS2 installation root")
+    find_program (MSYS2_CC
+                  NAMES gcc.exe x86_64-w64-mingw32-gcc.exe
+                  PATHS "${MSYS2_ROOT_PATH}/mingw64/bin" "${MSYS2_ROOT_PATH}/usr/bin"
+                  NO_DEFAULT_PATH
+                  DOC "MinGW GCC compiler")
     
-    if (NOT MSYS2_ROOT_PATH)
-        message (WARNING "MSYS2 installation not found. Please install MSYS2 or set MSYS2_ROOT environment variable.")
-        message (WARNING "Falling back to standard Windows build (may require additional setup).")
+    find_program (MSYS2_CXX
+                  NAMES g++.exe x86_64-w64-mingw32-g++.exe
+                  PATHS "${MSYS2_ROOT_PATH}/mingw64/bin" "${MSYS2_ROOT_PATH}/usr/bin"
+                  NO_DEFAULT_PATH
+                  DOC "MinGW G++ compiler")
+    
+    if (NOT MSYS2_CC OR NOT MSYS2_CXX)
+        message (WARNING "MinGW compilers not found. Install with: pacman -S mingw-w64-x86_64-toolchain")
+        message (WARNING "Falling back to standard Windows build.")
         set (FFMPEG_WINDOWS_USE_MSYS2 OFF)
     else()
-        message (STATUS "Found MSYS2 at: ${MSYS2_ROOT_PATH}")
+        message (STATUS "Found MinGW GCC: ${MSYS2_CC}")
+        message (STATUS "Found MinGW G++: ${MSYS2_CXX}")
         
-        find_program (MSYS2_CC
-                      NAMES gcc.exe x86_64-w64-mingw32-gcc.exe
-                      PATHS "${MSYS2_ROOT_PATH}/mingw64/bin" "${MSYS2_ROOT_PATH}/usr/bin"
-                      NO_DEFAULT_PATH
-                      DOC "MinGW GCC compiler")
-        
-        find_program (MSYS2_CXX
-                      NAMES g++.exe x86_64-w64-mingw32-g++.exe
-                      PATHS "${MSYS2_ROOT_PATH}/mingw64/bin" "${MSYS2_ROOT_PATH}/usr/bin"
-                      NO_DEFAULT_PATH
-                      DOC "MinGW G++ compiler")
-        
-        if (NOT MSYS2_CC OR NOT MSYS2_CXX)
-            message (WARNING "MinGW compilers not found. Install with: pacman -S mingw-w64-x86_64-toolchain")
-            message (WARNING "Falling back to standard Windows build.")
-            set (FFMPEG_WINDOWS_USE_MSYS2 OFF)
-        else()
-            message (STATUS "Found MinGW GCC: ${MSYS2_CC}")
-            message (STATUS "Found MinGW G++: ${MSYS2_CXX}")
-            
-            list (APPEND WINDOWS_CONFIGURE_EXTRA_ARGS
-                  "--toolchain=gcc"
-                  "--cc=${MSYS2_CC}"
-                  "--cxx=${MSYS2_CXX}")
-        endif()
+        list (APPEND WINDOWS_CONFIGURE_EXTRA_ARGS
+              "--toolchain=gcc"
+              "--cc=${MSYS2_CC}"
+              "--cxx=${MSYS2_CXX}")
     endif()
 endif()
 
-if (NOT FFMPEG_WINDOWS_USE_MSYS2)
+if (NOT FFMPEG_WINDOWS_USE_MSYS2 OR NOT MSYS2_ROOT_PATH)
     if (MSVC)
         message (STATUS "Using MSVC toolchain for Windows build")
         message (WARNING "MSVC builds require manual configuration. Consider using MSYS2 instead.")
@@ -87,6 +73,7 @@ if (NOT FFMPEG_WINDOWS_USE_MSYS2)
     else()
         # Assume MinGW or cross-compilation
         message (STATUS "Using default Windows build configuration")
+        message (WARNING "Build may fail without MSYS2. Consider installing MSYS2 for better Windows support.")
     endif()
 endif()
 
