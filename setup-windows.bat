@@ -34,7 +34,7 @@ if exist "C:\msys64\usr\bin\bash.exe" (
 
 if %MSYS2_FOUND%==0 (
     echo.
-    echo ❌ MSYS2 NOT FOUND
+    echo MSYS2 NOT FOUND
     echo.
     echo Please install MSYS2:
     echo 1. Download from https://www.msys2.org/
@@ -49,17 +49,17 @@ REM Check for build tools
 echo.
 echo Checking for build tools...
 if exist "%MSYS2_ROOT%\usr\bin\make.exe" (
-    echo ✓ make found
+    echo make found
 ) else (
-    echo ❌ make not found
+    echo make not found
     echo Please install build tools:
     echo Open MSYS2 terminal and run: pacman -S base-devel
 )
 
 if exist "%MSYS2_ROOT%\mingw64\bin\gcc.exe" (
-    echo ✓ MinGW GCC found
+    echo MinGW GCC found
 ) else (
-    echo ❌ MinGW GCC not found
+    echo MinGW GCC not found
     echo Please install MinGW toolchain:
     echo Open MSYS2 terminal and run: pacman -S mingw-w64-x86_64-toolchain
 )
@@ -68,11 +68,11 @@ REM Check for WSL bash that might interfere
 echo.
 echo Checking for potential conflicts...
 if exist "C:\Windows\System32\bash.exe" (
-    echo ⚠️  WARNING: WSL bash found at C:\Windows\System32\bash.exe
+    echo WARNING: WSL bash found at C:\Windows\System32\bash.exe
     echo This might interfere with MSYS2 bash
     echo The build system has been updated to avoid this conflict
 ) else (
-    echo ✓ No WSL bash conflicts detected
+    echo No WSL bash conflicts detected
 )
 
 REM Set environment variables
@@ -101,10 +101,10 @@ echo   cmake .. -DFFMPEG_WINDOWS_BUILD=ON -DFFMPEG_WINDOWS_USE_MSYS2=ON -DMSYS2_
 echo.
 
 if %MSYS2_FOUND%==1 (
-    echo ✅ Environment setup complete!
+    echo Environment setup complete!
     echo Your MSYS2 installation: %MSYS2_ROOT%
 ) else (
-    echo ❌ Environment setup incomplete - please install MSYS2
+    echo Environment setup incomplete - please install MSYS2
 )
 
 echo.

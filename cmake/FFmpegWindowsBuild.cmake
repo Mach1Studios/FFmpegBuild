@@ -20,6 +20,16 @@ include_guard (GLOBAL)
 
 message (STATUS "Configuring FFmpeg Windows build...")
 
+# Windows-specific configure options
+set (WINDOWS_CONFIGURE_EXTRA_ARGS
+     "--enable-cross-compile"
+     "--target-os=win32"
+     "--arch=x86_64"
+     "--disable-w32threads"  # Use pthreads instead
+     "--enable-pthreads"
+     "--disable-cuda-nvcc"   # Disable NVIDIA CUDA unless specifically needed
+     "--disable-libnpp")
+
 # Detect Windows build environment
 if (FFMPEG_WINDOWS_USE_MSYS2)
     message (STATUS "Using MSYS2/MinGW toolchain for Windows build")
@@ -37,14 +47,6 @@ if (FFMPEG_WINDOWS_USE_MSYS2)
         set (FFMPEG_WINDOWS_USE_MSYS2 OFF)
     else()
         message (STATUS "Found MSYS2 at: ${MSYS2_ROOT_PATH}")
-        
-        # Find required tools in MSYS2 - avoid WSL bash in System32
-        find_program (MSYS2_BASH
-                      NAMES bash.exe
-                      PATHS "${MSYS2_ROOT_PATH}/usr/bin"
-                      NO_DEFAULT_PATH
-                      DOC "MSYS2 bash executable"
-                      REQUIRED)
         
         find_program (MSYS2_CC
                       NAMES gcc.exe x86_64-w64-mingw32-gcc.exe
@@ -66,13 +68,10 @@ if (FFMPEG_WINDOWS_USE_MSYS2)
             message (STATUS "Found MinGW GCC: ${MSYS2_CC}")
             message (STATUS "Found MinGW G++: ${MSYS2_CXX}")
             
-            set (WINDOWS_CONFIGURE_EXTRA_ARGS
-                 "--toolchain=gcc"
-                 "--enable-cross-compile"
-                 "--target-os=win32"
-                 "--arch=x86_64"
-                 "--cc=${MSYS2_CC}"
-                 "--cxx=${MSYS2_CXX}")
+            list (APPEND WINDOWS_CONFIGURE_EXTRA_ARGS
+                  "--toolchain=gcc"
+                  "--cc=${MSYS2_CC}"
+                  "--cxx=${MSYS2_CXX}")
         endif()
     endif()
 endif()
@@ -80,34 +79,16 @@ endif()
 if (NOT FFMPEG_WINDOWS_USE_MSYS2)
     if (MSVC)
         message (STATUS "Using MSVC toolchain for Windows build")
-        
-        # MSVC requires additional setup and is more complex
-        # FFmpeg's configure script doesn't directly support MSVC well
         message (WARNING "MSVC builds require manual configuration. Consider using MSYS2 instead.")
         
-        set (WINDOWS_CONFIGURE_EXTRA_ARGS
-             "--toolchain=msvc"
-             "--enable-cross-compile"
-             "--target-os=win32"
-             "--arch=x86_64")
+        list (APPEND WINDOWS_CONFIGURE_EXTRA_ARGS
+              "--toolchain=msvc")
              
     else()
         # Assume MinGW or cross-compilation
         message (STATUS "Using default Windows build configuration")
-        
-        set (WINDOWS_CONFIGURE_EXTRA_ARGS
-             "--enable-cross-compile"
-             "--target-os=win32"
-             "--arch=x86_64")
     endif()
 endif()
-
-# Windows-specific configure options
-list (APPEND WINDOWS_CONFIGURE_EXTRA_ARGS
-      "--disable-w32threads"  # Use pthreads instead
-      "--enable-pthreads"
-      "--disable-cuda-nvcc"   # Disable NVIDIA CUDA unless specifically needed
-      "--disable-libnpp")
 
 # Configure build
 if (PROJECT_IS_TOP_LEVEL)
@@ -120,114 +101,17 @@ set (windows_output_dir "${ffmpeg_output_dir}/windows")
 
 message (DEBUG "Windows output directory: ${windows_output_dir}")
 
-# Configure the build based on available tools
-if (FFMPEG_WINDOWS_USE_MSYS2 AND MSYS2_BASH)
-    message (STATUS "Configuring MSYS2-based Windows build")
-    
-    # Convert paths to MSYS2 format
-    execute_process (
-        COMMAND "${MSYS2_BASH}" -c "cygpath -u '${FFMPEG_SOURCE_DIR}'"
-        OUTPUT_VARIABLE MSYS2_SOURCE_DIR
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-        ERROR_QUIET)
-    
-    execute_process (
-        COMMAND "${MSYS2_BASH}" -c "cygpath -u '${windows_output_dir}'"
-        OUTPUT_VARIABLE MSYS2_OUTPUT_DIR
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-        ERROR_QUIET)
-    
-    message (STATUS "MSYS2 source path: ${MSYS2_SOURCE_DIR}")
-    message (STATUS "MSYS2 output path: ${MSYS2_OUTPUT_DIR}")
-    
-    # Build the configure arguments string
-    string (REPLACE ";" " " WINDOWS_CONFIGURE_ARGS_STR "${WINDOWS_CONFIGURE_EXTRA_ARGS}")
-    
-    # Create a more robust wrapper script for the build
-    set (WINDOWS_BUILD_SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/ffmpeg_windows_build.sh")
-    
-    file (WRITE "${WINDOWS_BUILD_SCRIPT}"
-          "#!/bin/bash\n"
-          "set -e\n"
-          "echo \"=== FFmpeg Windows Build Script ===\"\n"
-          "echo \"Source directory: ${MSYS2_SOURCE_DIR}\"\n"
-          "echo \"Output directory: ${MSYS2_OUTPUT_DIR}\"\n"
-          "echo \"Working directory: $(pwd)\"\n"
-          "\n"
-          "# Verify we can access the source directory\n"
-          "if [ ! -d '${MSYS2_SOURCE_DIR}' ]; then\n"
-          "  echo \"ERROR: Source directory not found: ${MSYS2_SOURCE_DIR}\"\n"
-          "  exit 1\n"
-          "fi\n"
-          "\n"
-          "# Change to source directory\n"
-          "echo \"Changing to source directory...\"\n"
-          "cd '${MSYS2_SOURCE_DIR}'\n"
-          "echo \"Current directory: $(pwd)\"\n"
-          "\n"
-          "# Verify configure script exists\n"
-          "if [ ! -f './configure' ]; then\n"
-          "  echo \"ERROR: configure script not found in $(pwd)\"\n"
-          "  ls -la | head -10\n"
-          "  exit 1\n"
-          "fi\n"
-          "\n"
-          "# Clean previous build\n"
-          "echo \"Cleaning previous build...\"\n"
-          "make distclean || echo \"No previous build to clean\"\n"
-          "\n"
-          "# Create output directory\n"
-          "mkdir -p '${MSYS2_OUTPUT_DIR}'\n"
-          "\n"
-          "# Configure FFmpeg\n"
-          "echo \"Configuring FFmpeg...\"\n"
-          "./configure \\\n"
-          "  --prefix='${MSYS2_OUTPUT_DIR}' \\\n"
-          "  --libdir='${MSYS2_OUTPUT_DIR}' \\\n"
-          "  --shlibdir='${MSYS2_OUTPUT_DIR}' \\\n"
-          "  --incdir='${MSYS2_OUTPUT_DIR}/include' \\\n"
-          "  --disable-doc \\\n"
-          "  --disable-asm \\\n"
-          "  --disable-lzma \\\n"
-          "  --disable-bzlib \\\n"
-          "  --disable-zlib \\\n"
-          "  ${WINDOWS_CONFIGURE_ARGS_STR}\n"
-          "\n"
-          "echo \"Starting FFmpeg build...\"\n"
-          "make -j${NUM_PROCESSORS}\n"
-          "\n"
-          "echo \"Installing FFmpeg...\"\n"
-          "make install\n"
-          "\n"
-          "echo \"FFmpeg build completed successfully\"\n")
-    
-    # Create the build target using MSYS2 - simplified approach
-    add_custom_target (
-        ffmpeg_build_windows
-        ${all_flag}
-        COMMAND "${MSYS2_BASH}" "${WINDOWS_BUILD_SCRIPT}"
-        WORKING_DIRECTORY "${FFMPEG_SOURCE_DIR}"
-        COMMENT "Building FFmpeg for Windows using MSYS2..."
-        VERBATIM 
-        USES_TERMINAL)
+# Use standard functions like other platforms
+preconfigure_ffmpeg_build (
+    SOURCE_DIR "${FFMPEG_SOURCE_DIR}" 
+    OUTPUT_DIR "${windows_output_dir}"
+    EXTRA_ARGS ${WINDOWS_CONFIGURE_EXTRA_ARGS})
 
-else()
-    message (STATUS "Configuring standard Windows build (no MSYS2)")
-    message (WARNING "Standard Windows build may require additional manual configuration")
-    
-    # Try to use the standard build functions
-    # This may not work well on Windows without MSYS2, but provides a fallback
-    preconfigure_ffmpeg_build (
-        SOURCE_DIR "${FFMPEG_SOURCE_DIR}" 
-        OUTPUT_DIR "${windows_output_dir}"
-        EXTRA_ARGS ${WINDOWS_CONFIGURE_EXTRA_ARGS})
-
-    create_ffmpeg_build_target (
-        SOURCE_DIR "${FFMPEG_SOURCE_DIR}" 
-        OUTPUT_DIR "${windows_output_dir}"
-        BUILD_TARGET ffmpeg_build_windows
-        ${all_flag})
-endif()
+create_ffmpeg_build_target (
+    SOURCE_DIR "${FFMPEG_SOURCE_DIR}" 
+    OUTPUT_DIR "${windows_output_dir}"
+    BUILD_TARGET ffmpeg_build_windows
+    ${all_flag})
 
 # Note: avconfig.h will be copied after the build completes
 # since it's generated by the configure script
