@@ -77,12 +77,32 @@ set (FFMPEG_INSTALL_DEST "${CMAKE_INSTALL_LIBDIR}/cmake/FFmpeg"
      CACHE STRING
            "Directory below INSTALL_PREFIX where FFmpeg CMake package files will be installed to")
 
+# Windows MSYS2 detection (needs to happen early for make executable detection)
+if (WIN32)
+    option(FFMPEG_WINDOWS_USE_MSYS2 "Use MSYS2/MinGW for Windows builds" ON)
+    
+    if (FFMPEG_WINDOWS_USE_MSYS2)
+        # Quick MSYS2 detection
+        find_path (MSYS2_ROOT_PATH
+                   NAMES usr/bin/bash.exe
+                   PATHS "C:/msys64" "C:/msys2" "D:/msys64" "D:/msys2" 
+                         "$ENV{MSYS2_ROOT}" "$ENV{MSYSTEM_PREFIX}/.."
+                   DOC "Path to MSYS2 installation root")
+        
+        if (NOT MSYS2_ROOT_PATH)
+            message (WARNING "MSYS2 not found, disabling MSYS2 support")
+            set (FFMPEG_WINDOWS_USE_MSYS2 OFF)
+        endif()
+    endif()
+endif()
+
 # Platform-specific make executable detection
 if (WIN32 AND FFMPEG_WINDOWS_USE_MSYS2)
     find_program (FFMPEG_MAKE_EXECUTABLE 
                   NAMES make.exe make
-                  PATHS "C:/msys64/usr/bin" "C:/msys2/usr/bin" "D:/msys64/usr/bin" "D:/msys2/usr/bin"
-                        "$ENV{MSYS2_ROOT}/usr/bin"
+                  PATHS "${MSYS2_ROOT_PATH}/usr/bin" "C:/msys64/usr/bin" "C:/msys2/usr/bin" 
+                        "D:/msys64/usr/bin" "D:/msys2/usr/bin" "$ENV{MSYS2_ROOT}/usr/bin"
+                  NO_DEFAULT_PATH
                   DOC "Path to the make executable used for building FFmpeg (MSYS2/MinGW)")
     
     if (NOT FFMPEG_MAKE_EXECUTABLE)
