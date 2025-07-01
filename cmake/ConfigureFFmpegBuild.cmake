@@ -37,6 +37,21 @@ option(BUILD_SHARED_LIBS "Build as shared libraries" OFF)
     make, and then make install is run to install its artefacts to the OUTPUT_DIR.
     OUTPUT_DIR should still be within the project's build tree.
 ]]
+# Helper function to convert Windows paths to MSYS2 format
+function(__convert_path_to_msys2 input_path output_var)
+    set(converted_path "${input_path}")
+    # First normalize backslashes to forward slashes
+    string (REPLACE "\\" "/" converted_path "${converted_path}")
+    # Convert drive letters to MSYS2 format
+    string (REPLACE "C:" "/c" converted_path "${converted_path}")
+    string (REPLACE "D:" "/d" converted_path "${converted_path}")
+    string (REPLACE "E:" "/e" converted_path "${converted_path}")
+    string (REPLACE "F:" "/f" converted_path "${converted_path}")
+    string (REPLACE "G:" "/g" converted_path "${converted_path}")
+    string (REPLACE "H:" "/h" converted_path "${converted_path}")
+    set(${output_var} "${converted_path}" PARENT_SCOPE)
+endfunction()
+
 function (preconfigure_ffmpeg_build)
 
     set (oneValueArgs OUTPUT_DIR SOURCE_DIR)
@@ -136,22 +151,39 @@ function (preconfigure_ffmpeg_build)
             # Convert Windows paths to MSYS2 format in the configure command
             string (REPLACE ";" " " ffmpeg_config_command_str "${ffmpeg_config_command}")
             
-            # Convert Windows paths (D:/path) to MSYS2 paths (/d/path)
-            string (REGEX REPLACE "([A-Za-z]):" "/\\1" ffmpeg_config_command_str "${ffmpeg_config_command_str}")
+            # Convert Windows paths to MSYS2 format
+            __convert_path_to_msys2("${ffmpeg_config_command_str}" ffmpeg_config_command_str)
+            __convert_path_to_msys2("${MSYS2_ROOT_PATH}" msys2_root_unix)
+            __convert_path_to_msys2("${FOLEYS_ARG_SOURCE_DIR}" msys2_working_dir)
             
-            set (ffmpeg_config_command "${MSYS2_BASH}" "-c" "${ffmpeg_config_command_str}")
+            # Set up proper MSYS2 environment and run configure
+            set (msys2_env_setup "export PATH=\"${msys2_root_unix}/usr/bin:${msys2_root_unix}/mingw64/bin:$PATH\"")
+            set (full_command "${msys2_env_setup} && cd '${msys2_working_dir}' && ${ffmpeg_config_command_str}")
+            
+            set (ffmpeg_config_command "${MSYS2_BASH}" "-c" "${full_command}")
             message (STATUS "Using MSYS2 bash to run configure: ${MSYS2_BASH}")
-            message (STATUS "Configure command: ${ffmpeg_config_command_str}")
+            message (STATUS "Working directory (MSYS2): ${msys2_working_dir}")
+            message (STATUS "Configure command with paths converted: ${ffmpeg_config_command_str}")
         else()
             message (WARNING "MSYS2 bash not found, configure may fail")
         endif()
     endif()
 
-    execute_process (
-        COMMAND ${ffmpeg_config_command} 
-        WORKING_DIRECTORY "${FOLEYS_ARG_SOURCE_DIR}" 
-        COMMAND_ECHO STDOUT 
-        COMMAND_ERROR_IS_FATAL ANY)
+    # Execute the configure command
+    if (WIN32 AND FFMPEG_WINDOWS_USE_MSYS2 AND MSYS2_ROOT_PATH AND MSYS2_BASH)
+        # For MSYS2, we handle the working directory inside the bash command
+        execute_process (
+            COMMAND ${ffmpeg_config_command} 
+            COMMAND_ECHO STDOUT 
+            COMMAND_ERROR_IS_FATAL ANY)
+    else()
+        # For other platforms, use the normal working directory
+        execute_process (
+            COMMAND ${ffmpeg_config_command} 
+            WORKING_DIRECTORY "${FOLEYS_ARG_SOURCE_DIR}" 
+            COMMAND_ECHO STDOUT 
+            COMMAND_ERROR_IS_FATAL ANY)
+    endif()
 
 endfunction ()
 
