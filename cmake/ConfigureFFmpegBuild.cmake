@@ -123,6 +123,30 @@ function (preconfigure_ffmpeg_build)
         list (APPEND ffmpeg_config_command ${FOLEYS_ARG_EXTRA_ARGS})
     endif ()
 
+    # On Windows with MSYS2, wrap the configure command in bash
+    if (WIN32 AND FFMPEG_WINDOWS_USE_MSYS2 AND MSYS2_ROOT_PATH)
+        # Find MSYS2 bash
+        find_program (MSYS2_BASH
+                      NAMES bash.exe
+                      PATHS "${MSYS2_ROOT_PATH}/usr/bin"
+                      NO_DEFAULT_PATH
+                      DOC "MSYS2 bash executable")
+        
+        if (MSYS2_BASH)
+            # Convert Windows paths to MSYS2 format in the configure command
+            string (REPLACE ";" " " ffmpeg_config_command_str "${ffmpeg_config_command}")
+            
+            # Convert Windows paths (D:/path) to MSYS2 paths (/d/path)
+            string (REGEX REPLACE "([A-Za-z]):" "/\\1" ffmpeg_config_command_str "${ffmpeg_config_command_str}")
+            
+            set (ffmpeg_config_command "${MSYS2_BASH}" "-c" "${ffmpeg_config_command_str}")
+            message (STATUS "Using MSYS2 bash to run configure: ${MSYS2_BASH}")
+            message (STATUS "Configure command: ${ffmpeg_config_command_str}")
+        else()
+            message (WARNING "MSYS2 bash not found, configure may fail")
+        endif()
+    endif()
+
     execute_process (
         COMMAND ${ffmpeg_config_command} 
         WORKING_DIRECTORY "${FOLEYS_ARG_SOURCE_DIR}" 
